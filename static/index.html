@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#07111a">
+    <title>BRAHMAND LiveWatch | Earth Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="BRAHMAND LiveWatch home">
+          <span class="brand-mark">B<span>·</span></span>
+          <span><strong>BRAHMAND</strong><small>LIVEWATCH / EARTH INTELLIGENCE</small></span>
+        </a>
+        <div class="header-center"><span class="live-pulse"></span> GLOBAL MONITORING <i></i> OPEN DATA NETWORK</div>
+        <div class="header-right"><span id="utc-clock">--:--:-- UTC</span><button id="refresh-button" class="icon-button" title="Refresh feeds" aria-label="Refresh feeds">↻</button></div>
+      </header>
+
+      <main>
+        <section class="intro">
+          <div><p class="eyebrow">PLANETARY SITUATIONAL AWARENESS <span> / 01</span></p><h1>Global command centre</h1><p class="subhead">A live view of natural events, seismic activity, weather and orbital objects.</p></div>
+          <div class="updated"><span class="dot"></span><span id="updated-at">CONNECTING TO DATA SOURCES</span><button id="notify-button" class="outline-button">Enable alerts</button></div>
+        </section>
+
+        <section class="stats" aria-label="Global event statistics">
+          <article class="stat-card"><span class="stat-icon quakes">⌁</span><div><span class="stat-label">EARTHQUAKES · 24H</span><strong id="quake-count">—</strong><small>USGS global feed</small></div><b class="live-tag">LIVE</b></article>
+          <article class="stat-card"><span class="stat-icon events">◈</span><div><span class="stat-label">ACTIVE NATURAL EVENTS</span><strong id="event-count">—</strong><small>NASA EONET</small></div><b class="live-tag">LIVE</b></article>
+          <article class="stat-card"><span class="stat-icon orbit">⌾</span><div><span class="stat-label">OBJECTS TRACKED</span><strong id="satellite-count">—</strong><small>Fresh TLEs propagated</small></div><b class="derived-tag">DERIVED</b></article>
+          <article class="stat-card weather-card"><span class="stat-icon weather">☼</span><div><span class="stat-label">SELECTED LOCATION</span><strong id="weather-value">—</strong><small id="weather-detail">Click the map for local conditions</small></div><b class="live-tag">LIVE</b></article>
+        </section>
+
+        <section class="main-grid">
+          <article class="panel map-panel">
+            <div class="panel-heading"><div><p class="eyebrow">GLOBAL OVERVIEW</p><h2>Earth observation map</h2></div><div class="map-actions"><button class="filter-chip active" data-layer="all">ALL</button><button class="filter-chip" data-layer="earthquake">QUAKES</button><button class="filter-chip" data-layer="disaster">EVENTS</button><button class="filter-chip" data-layer="satellite">ORBIT</button></div></div>
+            <div id="map" role="application" aria-label="Interactive world map"></div>
+            <div class="map-footer"><div class="legend"><span><i class="legend-dot quake-dot"></i>Earthquake</span><span><i class="legend-dot event-dot"></i>Natural event</span><span><i class="legend-dot satellite-dot"></i>Satellite estimate</span></div><span class="map-note">Select any point for weather · markers show public-feed data</span></div>
+          </article>
+          <aside class="panel alert-panel">
+            <div class="panel-heading"><div><p class="eyebrow">LIVE MONITORING</p><h2>Alert centre</h2></div><span id="alert-total" class="count-pill">0</span></div>
+            <div class="alert-toolbar"><span>RECENT SIGNALS</span><button id="clear-history" class="text-button">Clear history</button></div>
+            <div id="alert-list" class="alert-list"><div class="empty-state">Waiting for live event feeds…</div></div>
+            <div class="panel-bottom"><span class="severity-key"><i class="sev high"></i> HIGH</span><span class="severity-key"><i class="sev moderate"></i> MODERATE</span><span class="severity-key"><i class="sev low"></i> LOW</span></div>
+          </aside>
+        </section>
+
+        <section class="bottom-grid">
+          <article class="panel feed-panel">
+            <div class="panel-heading"><div><p class="eyebrow">USGS · PAST 24 HOURS</p><h2>Seismic activity</h2></div><a class="source-link" href="https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php" target="_blank" rel="noreferrer">SOURCE ↗</a></div>
+            <div class="table-wrap"><table><thead><tr><th>MAG</th><th>LOCATION</th><th>DEPTH</th><th>TIME (UTC)</th></tr></thead><tbody id="quake-rows"><tr><td colspan="4" class="empty-state">Loading USGS feed…</td></tr></tbody></table></div>
+          </article>
+          <article class="panel feed-panel">
+            <div class="panel-heading"><div><p class="eyebrow">NASA EONET · OPEN EVENTS</p><h2>Natural events</h2></div><a class="source-link" href="https://eonet.gsfc.nasa.gov/" target="_blank" rel="noreferrer">SOURCE ↗</a></div>
+            <div id="event-list" class="event-list"><div class="empty-state">Loading NASA EONET feed…</div></div>
+          </article>
+          <article class="panel feed-panel satellite-panel">
+            <div class="panel-heading"><div><p id="satellite-source" class="eyebrow">CELESTRAK · SGP4</p><h2>Orbital objects</h2></div><span class="derived-tag">DELAYED / DERIVED</span></div>
+            <p id="satellite-note" class="provenance-note">Position estimates propagated from published TLEs—not direct radar observations.</p>
+            <div id="satellite-list" class="satellite-list"><div class="empty-state">Loading orbital data…</div></div>
+          </article>
+        </section>
+
+        <footer><span>BRAHMAND LIVEWATCH <i>·</i> PUBLIC-DATA MONITORING</span><div class="provenance"><span><b class="live-tag">LIVE</b> latest retrieved feed</span><span><b class="derived-tag">DELAYED / DERIVED</b> computed from published data</span><span><b class="sim-tag">SIMULATED</b> demo data only</span></div><button id="export-button" class="outline-button">Export mission report ↓</button></footer>
+      </main>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
