@@ -6,6 +6,21 @@ An independent full-stack Earth-monitoring dashboard with a FastAPI backend and 
 
 - Python 3.10+
 - Internet access for the public data feeds, map tiles, and the Leaflet/font CDNs
+- PostgreSQL for a hosted, persistent event history (SQLite is used automatically for local development)
+
+## Repository layout
+
+```text
+.github/workflows/ci.yml  GitHub test workflow
+static/                   Dashboard frontend (HTML, CSS, JavaScript)
+tests/                    Backend and database tests
+app.py                    FastAPI backend and API routes
+database.py               Event database schema and persistence
+render.yaml               Render web service and PostgreSQL blueprint
+requirements.txt          Python dependencies
+```
+
+Do not upload `.venv/`, local database files, secrets, or generated archives. `.gitignore` excludes these local files.
 
 ## Run locally
 
@@ -16,18 +31,24 @@ python -m pip install -r requirements.txt
 python -m uvicorn app:app --reload
 ```
 
-Open <http://127.0.0.1:8000>. The API schema is available at <http://127.0.0.1:8000/docs>.
+Open <http://127.0.0.1:8000>. The API schema is available at <http://127.0.0.1:8000/docs>. By default, the app creates `brahmand.db` locally. Set `DATABASE_URL` to a PostgreSQL connection string when you want to use PostgreSQL locally; never commit production database credentials.
+
+Run the backend and database tests with:
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 ## Deploy
 
-This project includes a Render Blueprint in `render.yaml`. To deploy it:
+This project includes a Render Blueprint in `render.yaml`. It deploys the FastAPI app (which serves the frontend and API together) and a PostgreSQL database in the same region. To deploy it:
 
 1. Push this repository to GitHub.
 2. In Render, choose **New → Blueprint** and connect the GitHub repository.
-3. Confirm the `brahmand-livewatch` web service and deploy it. Render installs `requirements.txt`, starts Uvicorn on the assigned port, and checks `/api/health`.
-4. Open the Render service URL. The dashboard and its `/api/*` endpoints are served by the same service.
+3. Confirm the web service and database resources, then deploy. Render supplies the database URL to the backend without storing credentials in GitHub.
+4. Open the Render service URL. The dashboard, `/api/*` endpoints, and shared event history are served by the same service. `/api/health` checks database connectivity.
 
-GitHub stores the source code and runs the test workflow on pushes and pull requests; GitHub Pages cannot host this app as-is because it requires a Python/FastAPI server for its API. The service uses public data feeds and therefore needs outbound internet access at runtime.
+GitHub stores the source code and runs tests on pushes and pull requests; it does not host the Python backend or database. GitHub Pages cannot run this app as-is. The included free Render database is for testing: it expires after 30 days, and the free web service can sleep while idle. Upgrade the database to a paid plan before relying on long-term event history. The service also needs outbound internet access to retrieve public data feeds.
 
 ## Data sources and authenticity
 
@@ -42,4 +63,4 @@ GitHub stores the source code and runs the test workflow on pushes and pull requ
 
 Earthquake alert levels are a magnitude-based heuristic, not official USGS alert declarations. NASA EONET does not provide a common severity scale, so those events are shown as unclassified.
 
-The browser refreshes feeds every 60 seconds. Individual source failures are shown in the corresponding panel. The alert centre keeps a bounded event history in browser local storage. High-severity notifications require browser permission. Mission reports download as JSON.
+The browser refreshes feeds every 60 seconds. Individual source failures are shown in the corresponding panel. USGS and NASA events are deduplicated and stored in the shared database; the alert centre displays the most recent 100 records. High-severity notifications require browser permission. Mission reports download as JSON.

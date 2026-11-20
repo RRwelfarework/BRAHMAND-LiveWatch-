@@ -18,6 +18,7 @@ let satelliteData = [];
 let satelliteSource = "CelesTrak / SGP4";
 let refreshInProgress = false;
 let history = readHistory();
+let historyLoadedFromServer = history.length > 0;
 let toastTimer;
 
 function readHistory() {
@@ -125,22 +126,15 @@ function renderSatellites(items) {
   document.getElementById("satellite-list").innerHTML = html || '<div class="empty-state">No orbital objects returned.</div>';
 }
 
-function getHistoryEvents() {
-  const quakes = quakeEvents.map((event) => ({
-    id: `usgs:${event.id}`, title: event.title, place: event.place || "USGS event",
-    time: event.time, severity: event.severity, source: "USGS",
-  }));
-  const disasters = disasterEvents.map((event) => ({
-    id: `eonet:${event.id}`, title: event.title, place: (event.categories || []).join(", ") || "Natural event",
-    time: event.time, severity: event.severity, source: "NASA EONET",
-  }));
-  const combined = [...quakes, ...disasters].sort(
-    (a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime(),
-  );
-  const newById = new Map(combined.map((event) => [event.id, event]));
+async function loadHistory() {
+  const data = await getFeed("/api/history?limit=100");
+  const events = Array.isArray(data.events) ? data.events : [];
   const previousIds = new Set(history.map((event) => event.id));
-  const newlySeen = [...newById.values()].filter((event) => !previousIds.has(event.id));
-  history = [...newById.values(), ...history.filter((event) => !newById.has(event.id))].slice(0, 100);
+  const newlySeen = historyLoadedFromServer
+    ? events.filter((event) => !previousIds.has(event.id))
+    : [];
+  history = events;
+  historyLoadedFromServer = true;
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   } catch {
@@ -207,8 +201,13 @@ async function refreshFeeds() {
   try {
     await Promise.all([loadEarthquakes(), loadDisasters(), loadSatellites()]);
     updateMap();
-    const newEvents = getHistoryEvents();
-    renderAlerts();
+    let newEvents = [];
+    try {
+      newEvents = await loadHistory();
+      renderAlerts();
+    } catch (error) {
+      setFeedError("alert-list", error);
+    }
     notifyNewEvents(newEvents);
     document.getElementById("updated-at").textContent = `UPDATED ${new Date().toISOString().slice(11, 19)} UTC`;
   } finally {
@@ -275,12 +274,6 @@ document.querySelectorAll(".filter-chip").forEach((button) => {
 });
 document.getElementById("refresh-button").addEventListener("click", refreshFeeds);
 document.getElementById("export-button").addEventListener("click", exportReport);
-document.getElementById("clear-history").addEventListener("click", () => {
-  history = [];
-  localStorage.removeItem(HISTORY_KEY);
-  renderAlerts();
-  showToast("Local event history cleared.");
-});
 document.getElementById("notify-button").addEventListener("click", async () => {
   if (!("Notification" in window)) {
     showToast("Browser notifications are not supported here.");

@@ -1,25 +1,106 @@
+import os
 import unittest
-from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app
+from database import normalize_database_url
 
 
 class LiveWatchTests(unittest.TestCase):
     def setUp(self) -> None:
         app._tle_cache = None
+        self.database_environment = patch.dict(
+            os.environ, {"DATABASE_URL": "sqlite+aiosqlite:///:memory:"}
+        )
+        self.database_environment.start()
         self.client = TestClient(app.app)
+        self.client.__enter__()
+
+    def tearDown(self) -> None:
+        self.client.__exit__(None, None, None)
+        self.database_environment.stop()
 
     def test_health_and_frontend(self) -> None:
-        self.assertEqual(self.client.get("/api/health").json()["status"], "ok")
+        health = self.client.get("/api/health").json()
+        self.assertEqual(health["status"], "ok")
+        self.assertEqual(health["database"], "connected")
         self.assertEqual(self.client.get("/").status_code, 200)
+
+    def test_feed_events_are_saved_and_deduplicated_in_shared_history(self) -> None:
+        first_quake_feed = {
+            "features": [
+                {
+                    "id": "usgs-1",
+                    "properties": {
+                        "title": "M 4.1 - Test location",
+                        "place": "Test location",
+                        "mag": 4.1,
+                        "time": 1_795_000_000_000,
+                        "url": "https://example.test/quake",
+                    },
+                    "geometry": {"coordinates": [12, 34, 8]},
+                }
+            ]
+        }
+        updated_quake_feed = {
+            "features": [
+                {
+                    **first_quake_feed["features"][0],
+                    "properties": {
+                        **first_quake_feed["features"][0]["properties"],
+                        "title": "Updated earthquake title",
+                    },
+                }
+            ]
+        }
+        disaster_feed = {
+            "events": [
+                {
+                    "id": "EONET-1",
+                    "title": "Test wildfire",
+                    "categories": [{"title": "Wildfires"}],
+                    "geometry": [{"date": "2026-11-20T10:00:00Z"}],
+                    "sources": [{"url": "https://example.test/event"}],
+                }
+            ]
+        }
+        with patch.object(
+            app,
+            "fetch_json",
+            new=AsyncMock(
+                side_effect=[first_quake_feed, updated_quake_feed, disaster_feed]
+            ),
+        ):
+            first = self.client.get("/api/earthquakes")
+            second = self.client.get("/api/earthquakes")
+            disasters = self.client.get("/api/disasters")
+
+        self.assertEqual(first.json()["stored_count"], 1)
+        self.assertEqual(second.json()["stored_count"], 1)
+        self.assertEqual(disasters.json()["stored_count"], 1)
+
+        history = self.client.get("/api/history?limit=10").json()
+        self.assertEqual(history["count"], 2)
+        by_id = {event["id"]: event for event in history["events"]}
+        self.assertEqual(
+            by_id["usgs:usgs-1"]["title"], "Updated earthquake title"
+        )
+        self.assertEqual(by_id["eonet:EONET-1"]["place"], "Wildfires")
+        self.assertEqual(by_id["eonet:EONET-1"]["severity"], "unclassified")
 
     def test_weather_rejects_out_of_range_coordinates(self) -> None:
         response = self.client.get("/api/weather?latitude=91&longitude=0")
         self.assertEqual(response.status_code, 422)
+
+    def test_render_postgres_url_uses_async_driver(self) -> None:
+        self.assertEqual(
+            normalize_database_url("postgres://user:pass@host/db"),
+            "postgresql+asyncpg://user:pass@host/db",
+        )
 
     def test_satellite_positions_are_earth_fixed_coordinates(self) -> None:
         now = datetime.now(timezone.utc)

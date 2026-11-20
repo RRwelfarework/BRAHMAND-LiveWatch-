@@ -1,29 +1,48 @@
 from __future__ import annotations
 
 import math
+import os
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sgp4.api import Satrec, jday
 
+from database import EventStore
+
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_DATABASE_URL = "sqlite+aiosqlite:///./brahmand.db"
 HTTP_TIMEOUT = httpx.Timeout(20.0, connect=8.0)
 USER_AGENT = "BRAHMAND-LiveWatch/1.0 (public data dashboard)"
 TLE_CACHE_SECONDS = 300
 MAX_TLE_AGE_DAYS = 7
 _tle_cache: tuple[float, list[tuple[str, str, str]], str] | None = None
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    event_store = EventStore(os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL))
+    try:
+        await event_store.initialize()
+        application.state.event_store = event_store
+        yield
+    finally:
+        await event_store.close()
+
+
 app = FastAPI(
     title="BRAHMAND LiveWatch",
-    description="Earth intelligence dashboard backed by public data feeds.",
+    description="Earth intelligence dashboard backed by public feeds and persistent event history.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
@@ -52,12 +71,17 @@ async def index() -> FileResponse:
 
 
 @app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "BRAHMAND LiveWatch"}
+async def health(request: Request) -> dict[str, str]:
+    await request.app.state.event_store.ping()
+    return {
+        "status": "ok",
+        "service": "BRAHMAND LiveWatch",
+        "database": "connected",
+    }
 
 
 @app.get("/api/earthquakes")
-async def earthquakes() -> dict[str, Any]:
+async def earthquakes(request: Request) -> dict[str, Any]:
     data = await fetch_json(
         "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
     )
@@ -91,11 +115,13 @@ async def earthquakes() -> dict[str, Any]:
                 ),
             }
         )
+    stored_count = await request.app.state.event_store.save_events("USGS", features)
     return {
         "source": "USGS",
         "authenticity": "LIVE",
         "retrieved_at": utc_now().isoformat(),
         "count": len(features),
+        "stored_count": stored_count,
         "events": features,
     }
 
@@ -131,7 +157,7 @@ def event_coordinates(geometry: dict[str, Any]) -> tuple[float, float] | None:
 
 
 @app.get("/api/disasters")
-async def disasters() -> dict[str, Any]:
+async def disasters(request: Request) -> dict[str, Any]:
     data = await fetch_json(
         "https://eonet.gsfc.nasa.gov/api/v3/events",
         params={"status": "open", "limit": 100},
@@ -154,10 +180,25 @@ async def disasters() -> dict[str, Any]:
                 "severity_basis": "NASA EONET does not provide a common severity scale.",
             }
         )
+    stored_count = await request.app.state.event_store.save_events("NASA EONET", events)
     return {
         "source": "NASA EONET",
         "authenticity": "LIVE",
         "retrieved_at": utc_now().isoformat(),
+        "count": len(events),
+        "stored_count": stored_count,
+        "events": events,
+    }
+
+
+@app.get("/api/history")
+async def event_history(
+    request: Request,
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    events = await request.app.state.event_store.get_history(limit)
+    return {
+        "source": "BRAHMAND event database",
         "count": len(events),
         "events": events,
     }
