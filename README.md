@@ -25,13 +25,14 @@ Do not upload `.venv/`, local database files, secrets, or generated archives. `.
 ## Run locally
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python --version
+python -m venv .venv-livewatch
+.\.venv-livewatch\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m uvicorn app:app --reload
+python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. The API schema is available at <http://127.0.0.1:8000/docs>. By default, the app creates `brahmand.db` locally. Set `DATABASE_URL` to a PostgreSQL connection string when you want to use PostgreSQL locally; never commit production database credentials.
+Use Python 3.10 or newer. Open <http://127.0.0.1:8000> after Uvicorn starts; the API schema is at <http://127.0.0.1:8000/docs>. Do not open `static/index.html` with VS Code Live Server: it serves only the frontend, so `/api/*` requests return 404. By default, the app creates `brahmand.db` locally. Set `DATABASE_URL` to a PostgreSQL connection string when you want to use PostgreSQL locally; never commit production database credentials.
 
 Run the backend and database tests with:
 
