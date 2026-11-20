@@ -18,6 +18,17 @@ python -m uvicorn app:app --reload
 
 Open <http://127.0.0.1:8000>. The API schema is available at <http://127.0.0.1:8000/docs>.
 
+## Deploy
+
+This project includes a Render Blueprint in `render.yaml`. To deploy it:
+
+1. Push this repository to GitHub.
+2. In Render, choose **New → Blueprint** and connect the GitHub repository.
+3. Confirm the `brahmand-livewatch` web service and deploy it. Render installs `requirements.txt`, starts Uvicorn on the assigned port, and checks `/api/health`.
+4. Open the Render service URL. The dashboard and its `/api/*` endpoints are served by the same service.
+
+GitHub stores the source code and runs the test workflow on pushes and pull requests; GitHub Pages cannot host this app as-is because it requires a Python/FastAPI server for its API. The service uses public data feeds and therefore needs outbound internet access at runtime.
+
 ## Data sources and authenticity
 
 | Module | Source | Label |
