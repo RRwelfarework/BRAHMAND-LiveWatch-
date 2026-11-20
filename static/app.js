@@ -1,5 +1,10 @@
 const REFRESH_MS = 60_000;
 const HISTORY_KEY = "brahmand-livewatch-history-v1";
+const API_BASE_URL =
+  ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+  window.location.port !== "8000"
+    ? "http://127.0.0.1:8000"
+    : "";
 const map = L.map("map", { zoomControl: true, worldCopyJump: true }).setView([20, 10], 2);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 8,
@@ -61,7 +66,7 @@ function severityClass(severity) {
 }
 
 async function getFeed(url) {
-  const response = await fetch(url);
+  const response = await fetch(`${API_BASE_URL}${url}`);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.detail || `Request failed (${response.status})`);
   return payload;

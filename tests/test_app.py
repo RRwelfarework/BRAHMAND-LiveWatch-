@@ -30,6 +30,20 @@ class LiveWatchTests(unittest.TestCase):
         self.assertEqual(health["database"], "connected")
         self.assertEqual(self.client.get("/").status_code, 200)
 
+    def test_local_frontend_origin_can_call_api(self) -> None:
+        response = self.client.get(
+            "/api/health", headers={"Origin": "http://127.0.0.1:5501"}
+        )
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://127.0.0.1:5501",
+        )
+
+        external = self.client.get(
+            "/api/health", headers={"Origin": "https://example.test"}
+        )
+        self.assertNotIn("access-control-allow-origin", external.headers)
+
     def test_feed_events_are_saved_and_deduplicated_in_shared_history(self) -> None:
         first_quake_feed = {
             "features": [

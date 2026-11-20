@@ -32,7 +32,7 @@ python -m pip install -r requirements.txt
 python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Use Python 3.10 or newer. Open <http://127.0.0.1:8000> after Uvicorn starts; the API schema is at <http://127.0.0.1:8000/docs>. Do not open `static/index.html` with VS Code Live Server: it serves only the frontend, so `/api/*` requests return 404. By default, the app creates `brahmand.db` locally. Set `DATABASE_URL` to a PostgreSQL connection string when you want to use PostgreSQL locally; never commit production database credentials.
+Use Python 3.10 or newer. Open <http://127.0.0.1:8000> after Uvicorn starts; the API schema is at <http://127.0.0.1:8000/docs>. Alternatively, open `static/index.html` with VS Code Live Server: on localhost, the frontend routes API calls to the backend on port 8000. The backend must still be running, and localhost is the only cross-origin access allowed. By default, the app creates `brahmand.db` locally. Set `DATABASE_URL` to a PostgreSQL connection string when you want to use PostgreSQL locally; never commit production database credentials.
 
 Run the backend and database tests with:
 
